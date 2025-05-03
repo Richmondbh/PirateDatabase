@@ -11,5 +11,7 @@ namespace PirateDatabase.Models
         public int Id { get; set; }
         public int Name { get; set; }
 
+        public int MaxCrewNumber { get; set; }
+
     }
 }

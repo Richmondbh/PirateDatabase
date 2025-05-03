@@ -12,7 +12,7 @@
         <TextBox x:Name="txtbPirateName" HorizontalAlignment="Left" Margin="67,67,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
         <ComboBox x:Name="cmbRank" HorizontalAlignment="Left" Margin="67,101,0,0" VerticalAlignment="Top" Width="120"/>
         <Label x:Name="label2" Content="Rank" HorizontalAlignment="Left" Margin="23,101,0,0" VerticalAlignment="Top"/>
-        <Button x:Name="btnCreatePirate" Content="Skapa Ny Pirat" HorizontalAlignment="Left" Margin="67,141,0,0" VerticalAlignment="Top" Height="24" Width="91" Background="#FF97D088"/>
+        <Button x:Name="btnCreatePirate" Content="Skapa Ny Pirat" HorizontalAlignment="Left" Margin="67,141,0,0" VerticalAlignment="Top" Height="24" Width="91" Background="#FF97D088" Click="btnCreatePirate_Click"/>
 
     </Grid>
 </Window>
