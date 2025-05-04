@@ -88,13 +88,126 @@ class DbRepository
         
     }
 
-    /* Jag vill med TRANSACTION först kolla om en pirat är redan på ett skepp, räkna antal pirater på ett skepp och jämföra den med max_crew_number och sen bemanna skeppet*/
 
-    public async Task OmboardApirateToShip(int pirateId, int shipId)
+    /* Jag vill först kolla om en pirat är redan på ett skepp, 
+     * räkna antal pirater på ett skepp och
+     * jämföra den med max_crew_number och sen kan hen bemanna skeppet
+     * Ja ville använda transaction men tror att det är liksom "overkill"/inte nödvändigt
+      */
+
+    /*  
+     (int) som cast funkade inte så provade ConvertToInt32:https://stackoverflow.com/questions/745172/better-way-to-cast-object-to-int
+     */
+    public async Task OmboardPirateToShip(int pirateId, int shipId)
     {
+        //Jag ska kolla om en pirate är bemannad
+        using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var pirateCheckCommand = new NpgsqlCommand("Select ship_id from pirate Where id =@pirateId", conn);
+        pirateCheckCommand.Parameters.AddWithValue("pirateId", pirateId);
+        var idCheck =  await pirateCheckCommand.ExecuteScalarAsync();
+
+        //DB null check: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/repositories/DbRepository.cs
+        if (idCheck!=null && idCheck != DBNull.Value)
+        {
+            throw new Exception("Piraten är redan bemannad på ett skepp");
+        }
+
+        //Nu ska jag kolla hur många pirater är på ett skepp
+
+        var shipCheckCommand = new NpgsqlCommand(" Select Count (*) from pirate where ship_id = @shipId ", conn);
+        shipCheckCommand.Parameters.AddWithValue("shipId", shipId);
+        int shipCheck = Convert.ToInt32(await shipCheckCommand.ExecuteScalarAsync());
+
+        //Kolla hur många pirater ett skepp kan ta
+        // Join syntax:https://neon.tech/postgresql/postgresql-tutorial/postgresql-inner-join
+
+        var shipCapacityCommand = new NpgsqlCommand("Select  st.max_crew_number from ship s " +
+                                                     "join ship_type st on" +
+                                                     " s.ship_type_id = st.id " +
+                                                     "where s.id = @shipId", conn);
+        shipCapacityCommand.Parameters.AddWithValue("@shipId", shipId);
+
+        int capacityCheck = Convert.ToInt32(await shipCapacityCommand.ExecuteScalarAsync());
+
+        if (shipCheck >= capacityCheck)
+        {
+            throw new Exception("Skeppet är fullt och kan inte bemannas");
+        }
+
+        //Nu ska piraten bemanna ett skepp
+        //Update syntax: https://neon.tech/postgresql/postgresql-tutorial/postgresql-update
+
+        var OmboardCommand = new NpgsqlCommand("Update pirate Set ship_id =@ShipId Where id =@pirateId",conn);
+        OmboardCommand.Parameters.AddWithValue("shipId", shipId);
+        OmboardCommand.Parameters.AddWithValue("pirateId", pirateId);
+
+        await OmboardCommand.ExecuteNonQueryAsync();
 
     }
-}  
+
+    public async Task<List<Ship>> GetAllShips()
+    {
+        try
+        {
+            List<Ship> ships = new();
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            using var command = new NpgsqlCommand("Select id, name From ship",conn);
+            using(var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    Ship ship = new Ship
+                    {
+                        Id = (int)reader["id"],
+                        Name = reader["name"].ToString()
+                    };
+                    ships.Add(ship);
+                }
+            }
+            return ships;
+        }
+
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+
+    public async Task<List<Pirate>> GetAllPirates()
+    {
+        try
+        {
+            List<Pirate> pirates = new();
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            using var command = new NpgsqlCommand("Select id, name From pirate",conn);
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    Pirate pirate = new Pirate
+                    {
+                        Id = (int)reader["id"],
+                        Name = reader["name"].ToString()
+                    };
+                    pirates.Add(pirate);
+                }
+            }
+            return pirates;
+        }
+
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+}
+ 
 
 
 

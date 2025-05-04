@@ -11,6 +11,7 @@ using System.Windows.Shapes;
 using PirateDatabase.repositories;
 using PirateDatabase.Models;
 using System.Collections.Generic;
+using System.Security.Policy;
 
 namespace PirateDatabase
 {
@@ -23,7 +24,8 @@ namespace PirateDatabase
         public MainWindow()
         {
             InitializeComponent();
-            FillCombobox();
+            FillRankCombobox();
+            FillComboboxes();
         }
 
         private async void btnCreatePirate_Click(object sender, RoutedEventArgs e)
@@ -31,13 +33,15 @@ namespace PirateDatabase
             //combo patten matching: https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/functional/pattern-matching
             try
             {
-                if (txtbPirateName.Text.Length > 0 && cmbRank.SelectedItem is Rank selectedRank )
+                if (txtbPirateName.Text.Length > 0 && cbRank.SelectedItem is Rank selectedRank )
                 {
                     Pirate pirate = new Pirate { Name = txtbPirateName.Text, RankId=selectedRank.Id };
 
                     await _dbRepo.CreateNewPirate(pirate);
                     MessageBox.Show($"{pirate.Name} med rang {selectedRank.Name} är nu tillagd i databasen.");
-            
+                    FillComboboxes();
+
+
                 }
                 else
                 {
@@ -48,20 +52,64 @@ namespace PirateDatabase
             {
                 MessageBox.Show($"Det blev något fel: {ex.Message}");
             }
-        }   
+        }
 
-        private async void FillCombobox()
+        //Insert syntax: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
+        private async void FillRankCombobox()
         {
             List<Rank> ranks = await _dbRepo.GetAllRanks();
 
-            ranks.Insert(0, new Rank { Id = -1, Name = "**Välj rank" });
+            ranks.Insert(0, new Rank { Id = -1, Name = "**Välj rank**" });
 
-            cmbRank.ItemsSource = ranks;
-            cmbRank.DisplayMemberPath = "Name";
-            cmbRank.SelectedValuePath = "Id";
-            cmbRank.SelectedIndex = 0;
+            cbRank.ItemsSource = ranks;
+            cbRank.DisplayMemberPath = "Name";
+            cbRank.SelectedValuePath = "Id";
+            cbRank.SelectedIndex = 0;
 
 
+        }
+        //Enkla sätt att fylla in Combo:https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
+        private async void FillComboboxes()
+        {
+            List<Pirate> pirates = await _dbRepo.GetAllPirates();
+            List<Ship> ships = await _dbRepo.GetAllShips();
+
+            pirates.Insert(0, new Pirate { Id = -1, Name = "**Välj Pirat**" });
+            ships.Insert(0, new Ship { Id = -1, Name = "**Välj Skepp**" });
+
+            FillCombobox<Pirate>(cbSelectPirate, pirates);
+            FillCombobox<Ship>(cbSelectShip, ships);
+         
+        }
+        //Enkla sätt att fylla in Combo:https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
+        private async void FillCombobox<T>(ComboBox cb, List<T> list)
+        {
+            cb.ItemsSource = list;
+            cb.DisplayMemberPath = "Name";
+            cb.SelectedValuePath = "Id";
+            cb.SelectedIndex = 0;
+        }
+
+        private async void button_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (cbSelectPirate.SelectedItem is Pirate selectedPirate &&
+                    cbSelectShip.SelectedItem is Ship selectedShip)
+                {
+                    await _dbRepo.OmboardPirateToShip(selectedPirate.Id, selectedShip.Id);
+                    
+                    MessageBox.Show($"{selectedPirate.Name} har bemannats på {selectedShip.Name}.");
+                }
+                else
+                {
+                    MessageBox.Show("Välj både en pirat och ett skepp");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Tyvärr kunde piraten inte bemannas: {ex.Message}");
+            }
         }
     }
 }
