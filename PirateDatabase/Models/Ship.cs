@@ -12,5 +12,6 @@ namespace PirateDatabase.Models
         public string Name { get; set; }
 
         public int ShipTypeId { get; set; }
+        public bool IsSunken { get; set; }
     }
 }

@@ -33,7 +33,7 @@ namespace PirateDatabase
             //combo patten matching: https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/functional/pattern-matching
             try
             {
-                if (txtbPirateName.Text.Length > 0 && cbRank.SelectedItem is Rank selectedRank )
+                if (txtbPirateName.Text.Length > 0 && cbRank.SelectedItem is PirateRank selectedRank )
                 {
                     Pirate pirate = new Pirate { Name = txtbPirateName.Text, RankId=selectedRank.Id };
 
@@ -57,9 +57,9 @@ namespace PirateDatabase
         //Insert syntax: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
         private async void FillRankCombobox()
         {
-            List<Rank> ranks = await _dbRepo.GetAllRanks();
+            List<PirateRank> ranks = await _dbRepo.GetAllRanks();
 
-            ranks.Insert(0, new Rank { Id = -1, Name = "**Välj rank**" });
+            ranks.Insert(0, new PirateRank { Id = -1, Name = "**Välj rank**" });
 
             cbRank.ItemsSource = ranks;
             cbRank.DisplayMemberPath = "Name";
@@ -110,6 +110,22 @@ namespace PirateDatabase
             {
                 MessageBox.Show($"Tyvärr kunde piraten inte bemannas: {ex.Message}");
             }
+        }
+
+        private async void btnpirateSearch_Click(object sender, RoutedEventArgs e)
+        {
+            var pirateSearch = await _dbRepo.SearchFörPirateOrParrot(txtPirateSearch.Text);
+
+            if (pirateSearch == null)
+            {
+                MessageBox.Show("Ingen pirat eller papegoja hittades.");
+            }
+            else
+            {
+                MessageBox.Show($"{pirateSearch.Name} har rang ({pirateSearch.RankName}) , är på skeppet ({pirateSearch.ShipName}) och det finns ({pirateSearch.CrewNumber}) pirater knutna till detta skepp.");
+                txtPirateSearch.Clear();
+            }
+
         }
     }
 }
