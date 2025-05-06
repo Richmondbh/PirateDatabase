@@ -23,7 +23,7 @@
         <Label x:Name="label5" Content="Sök här" HorizontalAlignment="Left" Margin="479,50,0,0" VerticalAlignment="Top"/>
         <Label x:Name="label6" Content="Sjunka Skepp till botten" HorizontalAlignment="Left" Margin="232,238,0,0" VerticalAlignment="Top" Height="32" Width="176" Background="#FF9A7070"/>
         <ComboBox x:Name="cbSelectShipToSink" HorizontalAlignment="Left" Margin="250,288,0,0" VerticalAlignment="Top" Width="120"/>
-        <Button x:Name="btnSinkShip" Content="Sänka skepp" HorizontalAlignment="Left" Margin="280,329,0,0" VerticalAlignment="Top" Click="btnSinkShip_Click"/>
+        <Button x:Name="btnSinkShip" Content="Sänka skepp" HorizontalAlignment="Left" Margin="280,329,0,0" VerticalAlignment="Top" Click="btnSinkShip_Click" Background="#FFB52626"/>
 
     </Grid>
 </Window>
