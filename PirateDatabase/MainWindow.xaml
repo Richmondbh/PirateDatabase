@@ -21,6 +21,9 @@
         <TextBox x:Name="txtPirateSearch" HorizontalAlignment="Left" Margin="479,76,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top" Width="120"/>
         <Button x:Name="btnpirateSearch" Content="Sök" HorizontalAlignment="Left" Margin="494,109,0,0" VerticalAlignment="Top" Height="29" Width="90" Click="btnpirateSearch_Click" Background="#FF619C62"/>
         <Label x:Name="label5" Content="Sök här" HorizontalAlignment="Left" Margin="479,50,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="label6" Content="Sjunka Skepp till botten" HorizontalAlignment="Left" Margin="232,238,0,0" VerticalAlignment="Top" Height="32" Width="176" Background="#FF9A7070"/>
+        <ComboBox x:Name="cbSelectShipToSink" HorizontalAlignment="Left" Margin="250,288,0,0" VerticalAlignment="Top" Width="120"/>
+        <Button x:Name="btnSinkShip" Content="Sänka skepp" HorizontalAlignment="Left" Margin="280,329,0,0" VerticalAlignment="Top" Click="btnSinkShip_Click"/>
 
     </Grid>
 </Window>

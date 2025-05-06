@@ -12,6 +12,7 @@ using PirateDatabase.repositories;
 using PirateDatabase.Models;
 using System.Collections.Generic;
 using System.Security.Policy;
+using System.Diagnostics.Eventing.Reader;
 
 namespace PirateDatabase
 {
@@ -33,9 +34,9 @@ namespace PirateDatabase
             //combo patten matching: https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/functional/pattern-matching
             try
             {
-                if (txtbPirateName.Text.Length > 0 && cbRank.SelectedItem is PirateRank selectedRank )
+                if (txtbPirateName.Text.Length > 0 && cbRank.SelectedItem is PirateRank selectedRank)
                 {
-                    Pirate pirate = new Pirate { Name = txtbPirateName.Text, RankId=selectedRank.Id };
+                    Pirate pirate = new Pirate { Name = txtbPirateName.Text, RankId = selectedRank.Id };
 
                     await _dbRepo.CreateNewPirate(pirate);
                     MessageBox.Show($"{pirate.Name} med rang {selectedRank.Name} är nu tillagd i databasen.");
@@ -54,7 +55,7 @@ namespace PirateDatabase
             }
         }
 
-        //Insert syntax: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
+        //Insert (välj) syntax: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
         private async void FillRankCombobox()
         {
             List<PirateRank> ranks = await _dbRepo.GetAllRanks();
@@ -79,7 +80,9 @@ namespace PirateDatabase
 
             FillCombobox<Pirate>(cbSelectPirate, pirates);
             FillCombobox<Ship>(cbSelectShip, ships);
-         
+            FillCombobox<Ship>(cbSelectShipToSink, ships);
+
+
         }
         //Enkla sätt att fylla in Combo:https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
         private async void FillCombobox<T>(ComboBox cb, List<T> list)
@@ -98,7 +101,7 @@ namespace PirateDatabase
                     cbSelectShip.SelectedItem is Ship selectedShip)
                 {
                     await _dbRepo.OmboardPirateToShip(selectedPirate.Id, selectedShip.Id);
-                    
+
                     MessageBox.Show($"{selectedPirate.Name} har bemannats på {selectedShip.Name}.");
                 }
                 else
@@ -126,6 +129,32 @@ namespace PirateDatabase
                 txtPirateSearch.Clear();
             }
 
+        }
+
+
+        private async void btnSinkShip_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (cbSelectShipToSink.SelectedItem is Ship selectedShip)
+                {
+                    await _dbRepo.SinkShip(selectedShip.Id);
+
+                    MessageBox.Show($"Skeppet {selectedShip.Name} har sjunkit! Några har drunknat medan andra som överlevt har simmat till Tortuga igen.");
+                }
+
+                else
+                {
+                    MessageBox.Show("Välj ett skepp för att sänka");
+                }
+
+            }
+
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Tyvärr lyckades skeppet inte sjunkas: {ex.Message}");
+
+            }
         }
     }
 }

@@ -66,7 +66,7 @@ class DbRepository
 
             using (var reader = command.ExecuteReader())
             {
-             
+
                 while (reader.Read())
                 {
                     PirateRank rank = new PirateRank
@@ -85,7 +85,7 @@ class DbRepository
         {
             throw;
         }
-        
+
     }
 
 
@@ -106,10 +106,10 @@ class DbRepository
 
         var pirateCheckCommand = new NpgsqlCommand("Select ship_id from pirate Where id =@pirateId", conn);
         pirateCheckCommand.Parameters.AddWithValue("pirateId", pirateId);
-        var idCheck =  await pirateCheckCommand.ExecuteScalarAsync();
+        var idCheck = await pirateCheckCommand.ExecuteScalarAsync();
 
         //DB null check: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/repositories/DbRepository.cs
-        if (idCheck!=null && idCheck != DBNull.Value)
+        if (idCheck != null && idCheck != DBNull.Value)
         {
             throw new Exception("Piraten är redan bemannad på ett skepp");
         }
@@ -139,7 +139,7 @@ class DbRepository
         //Nu ska piraten bemanna ett skepp
         //Update syntax: https://neon.tech/postgresql/postgresql-tutorial/postgresql-update
 
-        var OmboardCommand = new NpgsqlCommand("Update pirate Set ship_id =@ShipId Where id =@pirateId",conn);
+        var OmboardCommand = new NpgsqlCommand("Update pirate Set ship_id =@ShipId Where id =@pirateId", conn);
         OmboardCommand.Parameters.AddWithValue("shipId", shipId);
         OmboardCommand.Parameters.AddWithValue("pirateId", pirateId);
 
@@ -155,8 +155,8 @@ class DbRepository
             using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            using var command = new NpgsqlCommand("Select id, name From ship",conn);
-            using(var reader = command.ExecuteReader())
+            using var command = new NpgsqlCommand("Select id, name From ship", conn);
+            using (var reader = command.ExecuteReader())
             {
                 while (reader.Read())
                 {
@@ -185,7 +185,7 @@ class DbRepository
             using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            using var command = new NpgsqlCommand("Select id, name From pirate",conn);
+            using var command = new NpgsqlCommand("Select id, name From pirate", conn);
             using (var reader = command.ExecuteReader())
             {
                 while (reader.Read())
@@ -218,12 +218,12 @@ class DbRepository
             using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
-       
+
 
             using var command = new NpgsqlCommand("SELECT P.NAME AS PIRATE_NAME, S.NAME AS SHIP_NAME, " +
                   "(SELECT COUNT(*) FROM PIRATE WHERE SHIP_ID = S.ID) AS CREW_NUMBER, " +
                   "R.NAME AS RANK_NAME FROM  PIRATE  P " +
-                  "JOIN SHIP S ON P.SHIP_ID = S.ID " +
+                  "LEFT JOIN SHIP S ON P.SHIP_ID = S.ID " +
                   "JOIN PIRATE_RANK R ON P.RANK_ID = R.ID " +
                   "LEFT JOIN PARROT PR ON P.ID = PR.PIRATE_ID " +
                   "WHERE P.NAME ILIKE @NAMESEARCH OR PR.NAME ILIKE @NAMESEARCH LIMIT 1;", conn);
@@ -231,21 +231,21 @@ class DbRepository
 
             command.Parameters.AddWithValue("nameSearch", nameSearch);
 
-            using (var reader = await  command.ExecuteReaderAsync())
+            using (var reader = await command.ExecuteReaderAsync())
             {
-            
+
 
                 while (await reader.ReadAsync())
                 {
                     pirateSearch = new Pirate
                     {
                         Name = reader["pirate_name"].ToString(),
-                        ShipName= reader["ship_name"].ToString(),
+                        ShipName = reader["ship_name"].ToString(),
                         RankName = reader["rank_name"].ToString(),
-                        CrewNumber =Convert.ToInt32(reader["crew_number"])                                     //ConvertFromDBVal<int?>(reader["crew_number"])
+                        CrewNumber = Convert.ToInt32(reader["crew_number"])                                     //ConvertFromDBVal<int?>(reader["crew_number"])
 
                     };
-                   
+
                 }
             }
             return pirateSearch;
@@ -280,27 +280,72 @@ class DbRepository
     }
 
 
-    //Jag vill med Transaction hantera sänkning av skeppet med slumpmässig överlevnad för besättningen:
+    //Jag vill med Transaction hantera sänkning av skeppet med slumpmässig överlevnad för besättningen.
     public async Task SinkShip(int shipId)
     {
         using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync();
         using var transaction = await conn.BeginTransactionAsync();
 
-        //Jag vill uppdatera ship tabell när man välja ett skepp
-        var sinkingCommand = new NpgsqlCommand("Update ship Set is_sunken = TRUE Where id = @shipId", conn, transaction);
-        sinkingCommand.Parameters.AddWithValue("shipId", shipId);
-        await sinkingCommand.ExecuteNonQueryAsync();
 
-        //Nu ska jag räkna hur många som var på skeppet
-        var PiratesCountCommand = new NpgsqlCommand("Select id From pirate Where ship_id = @shipId", conn, transaction);
-        PiratesCountCommand.Parameters.AddWithValue("shipId", shipId);
+        try
+        {
 
-        var pirateIds = new List<int>();
+            //Jag vill uppdatera ship tabell/sjunka skepet när man välja ett skepp
+            var sinkingCommand = new NpgsqlCommand("Update ship Set is_sunken = TRUE Where id = @shipId", conn, transaction);
+            sinkingCommand.Parameters.AddWithValue("shipId", shipId);
+            await sinkingCommand.ExecuteNonQueryAsync();
 
+            //Nu ska jag räkna hur många som var på skeppet
+            var piratesCountCommand = new NpgsqlCommand("Select id From pirate Where ship_id = @shipId", conn, transaction);
+            piratesCountCommand.Parameters.AddWithValue("shipId", shipId);
+
+            List<int> pirateIds = new List<int>();
+
+            using (var reader = piratesCountCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    pirateIds.Add((int)reader["id"]);
+                }
+            }
+
+            if (pirateIds.Count == 0)
+            {
+                await transaction.CommitAsync();
+                return;
+            }
+
+            //Nu ska jag slumpa från listan
+
+            Random random = new Random();
+            List<int> survivors = new List<int>();
+
+            foreach (int pirateid in pirateIds)
+            {
+                if (random.Next(2) == 0)
+                {
+                    survivors.Add(pirateid);
+                }
+            }
+
+            // updatera ship med survivors
+            foreach (int survivorId in survivors)
+            {
+                var surviversCommand = new NpgsqlCommand("Update pirate Set ship_id=null where id =@pirateId", conn, transaction);
+                surviversCommand.Parameters.AddWithValue("pirateId", survivorId);
+
+                await surviversCommand.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+        }
+
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            throw new Exception("Något gick fel vid transaktionen, ingen ändring sparades.", ex);
+        }
     }
 }
- 
-
-
 
