@@ -13,6 +13,7 @@ using PirateDatabase.Models;
 using System.Collections.Generic;
 using System.Security.Policy;
 using System.Diagnostics.Eventing.Reader;
+using System;
 
 namespace PirateDatabase
 {
@@ -25,8 +26,8 @@ namespace PirateDatabase
         public MainWindow()
         {
             InitializeComponent();
-            FillRankCombobox();
             FillComboboxes();
+           
         }
 
         private async void btnCreatePirate_Click(object sender, RoutedEventArgs e)
@@ -55,35 +56,27 @@ namespace PirateDatabase
             }
         }
 
-        //Insert (välj) syntax: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
-        private async void FillRankCombobox()
-        {
-            List<PirateRank> ranks = await _dbRepo.GetAllRanks();
+       
 
-            ranks.Insert(0, new PirateRank { Id = -1, Name = "**Välj rank**" });
-
-            cbRank.ItemsSource = ranks;
-            cbRank.DisplayMemberPath = "Name";
-            cbRank.SelectedValuePath = "Id";
-            cbRank.SelectedIndex = 0;
-
-
-        }
         //Enkla sätt att fylla in Combo:https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
         private async void FillComboboxes()
         {
             List<Pirate> pirates = await _dbRepo.GetAllPirates();
             List<Ship> ships = await _dbRepo.GetAllShips();
+            List<PirateRank> ranks = await _dbRepo.GetAllRanks();
 
             pirates.Insert(0, new Pirate { Id = -1, Name = "**Välj Pirat**" });
             ships.Insert(0, new Ship { Id = -1, Name = "**Välj Skepp**" });
+            ranks.Insert(0, new PirateRank { Id = -1, Name = "**Välj Rank**" });
 
             FillCombobox<Pirate>(cbSelectPirate, pirates);
             FillCombobox<Ship>(cbSelectShip, ships);
             FillCombobox<Ship>(cbSelectShipToSink, ships);
-
+            FillCombobox<Ship>(cbSelectShipToChangeCrew, ships);
+            FillCombobox<PirateRank>(cbRank, ranks);
 
         }
+
         //Enkla sätt att fylla in Combo:https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/MainWindow.xaml.cs
         private async void FillCombobox<T>(ComboBox cb, List<T> list)
         {
@@ -93,12 +86,12 @@ namespace PirateDatabase
             cb.SelectedIndex = 0;
         }
 
-        private async void button_Click(object sender, RoutedEventArgs e)
+        private async void OmboardShip_click(object sender, RoutedEventArgs e)
         {
             try
             {
                 if (cbSelectPirate.SelectedItem is Pirate selectedPirate &&
-                    cbSelectShip.SelectedItem is Ship selectedShip)
+                   cbSelectShip.SelectedItem is Ship selectedShip)
                 {
                     await _dbRepo.OmboardPirateToShip(selectedPirate.Id, selectedShip.Id);
 
@@ -117,18 +110,26 @@ namespace PirateDatabase
 
         private async void btnpirateSearch_Click(object sender, RoutedEventArgs e)
         {
-            var pirateSearch = await _dbRepo.SearchFörPirateOrParrot(txtPirateSearch.Text);
-
-            if (pirateSearch == null)
+            try 
             {
-                MessageBox.Show("Ingen pirat eller papegoja hittades.");
-            }
-            else
-            {
-                MessageBox.Show($"{pirateSearch.Name} har rang ({pirateSearch.RankName}) , är på skeppet ({pirateSearch.ShipName}) och det finns ({pirateSearch.CrewNumber}) pirater knutna till detta skepp.");
-                txtPirateSearch.Clear();
-            }
+                var pirateSearch = await _dbRepo.SearchFörPirateOrParrot(txtPirateSearch.Text);
 
+                if (pirateSearch == null)
+                {
+                    MessageBox.Show("Ingen pirat eller papegoja hittades.");
+                }
+                else
+                {
+                    MessageBox.Show($"{pirateSearch.Name} har rang ({pirateSearch.RankName}) , är på skeppet ({pirateSearch.ShipName}) och det finns ({pirateSearch.CrewNumber}) pirater knutna till detta skepp.");
+                    txtPirateSearch.Clear();
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Något gick fel : {ex.Message}");
+
+            }
         }
 
 
@@ -156,5 +157,29 @@ namespace PirateDatabase
 
             }
         }
+      
+        private async void btnUpdateCrewNumber_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+
+                if (cbSelectShipToChangeCrew.SelectedItem is Ship selectedShip && txtstateMaxCrewnumber.Text.Length > 0)
+                {
+                    int maxCrewnumber = int.Parse(txtstateMaxCrewnumber.Text);
+                    await _dbRepo.UpdateCrewNumber(selectedShip.Id, maxCrewnumber);
+                    MessageBox.Show($"Max antal pirater för {selectedShip.Name} uppdaterat till {maxCrewnumber}.");
+                }
+                else
+                {
+                    MessageBox.Show("Välj ett skepp och ange ett giltigt maxantal.");
+                }
+            }
+
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fel vid uppdatering: {ex.Message}");
+            }
+        }
+
     }
 }

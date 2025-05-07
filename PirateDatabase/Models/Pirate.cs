@@ -14,6 +14,7 @@ namespace PirateDatabase.Models
         public int RankId { get; set; }
         public int Reputation { get; set; }
         public int ShipId { get; set; }
+        public bool IsdeadAtSea { get; set; }
 
         //För att visa sökresultat
         public string ShipName{ get; set; }

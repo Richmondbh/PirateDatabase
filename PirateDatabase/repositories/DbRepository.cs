@@ -95,55 +95,64 @@ class DbRepository
      * Ja ville använda transaction men tror att det är liksom "overkill"/inte nödvändigt
       */
 
-    /*  
-     (int) som cast funkade inte så provade ConvertToInt32:https://stackoverflow.com/questions/745172/better-way-to-cast-object-to-int
-     */
+      
+     ///(int) som cast funkade inte så provade ConvertToInt32:https://stackoverflow.com/questions/745172/better-way-to-cast-object-to-int
+    
     public async Task OmboardPirateToShip(int pirateId, int shipId)
     {
-        //Jag ska kolla om en pirate är bemannad
-        using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
-
-        var pirateCheckCommand = new NpgsqlCommand("Select ship_id from pirate Where id =@pirateId", conn);
-        pirateCheckCommand.Parameters.AddWithValue("pirateId", pirateId);
-        var idCheck = await pirateCheckCommand.ExecuteScalarAsync();
-
-        //DB null check: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/repositories/DbRepository.cs
-        if (idCheck != null && idCheck != DBNull.Value)
+        try
         {
-            throw new Exception("Piraten är redan bemannad på ett skepp");
+            ///Jag ska kolla om en pirate är bemannad
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            var pirateCheckCommand = new NpgsqlCommand("Select ship_id from pirate Where id =@pirateId", conn);
+            pirateCheckCommand.Parameters.AddWithValue("pirateId", pirateId);
+            var idCheck = await pirateCheckCommand.ExecuteScalarAsync();
+
+            ///DB null check: https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/repositories/DbRepository.cs
+            if (idCheck != null && idCheck != DBNull.Value)
+            {
+                throw new Exception("Piraten är redan bemannad på ett skepp");
+            }
+
+            ///Nu ska jag kolla hur många pirater är på ett skepp
+
+            var shipCheckCommand = new NpgsqlCommand(" Select Count (*) from pirate where ship_id = @shipId ", conn);
+            shipCheckCommand.Parameters.AddWithValue("shipId", shipId);
+            int shipCheck = Convert.ToInt32(await shipCheckCommand.ExecuteScalarAsync());
+
+            ///Kolla hur många pirater ett skepp kan ta
+            /// Join syntax:https://neon.tech/postgresql/postgresql-tutorial/postgresql-inner-join
+
+            var shipCapacityCommand = new NpgsqlCommand("Select  st.max_crew_number from ship s " +
+                                                         "join ship_type st on" +
+                                                         " s.ship_type_id = st.id " +
+                                                         "where s.id = @shipId", conn);
+            shipCapacityCommand.Parameters.AddWithValue("@shipId", shipId);
+
+            int capacityCheck = Convert.ToInt32(await shipCapacityCommand.ExecuteScalarAsync());
+
+            if (shipCheck >= capacityCheck)
+            {
+                throw new Exception("Skeppet är fullt och kan inte bemannas");
+            }
+
+            ///Nu ska piraten bemanna ett skepp
+            ///Update syntax: https://neon.tech/postgresql/postgresql-tutorial/postgresql-update
+
+            var OmboardCommand = new NpgsqlCommand("Update pirate Set ship_id =@ShipId Where id =@pirateId", conn);
+            OmboardCommand.Parameters.AddWithValue("shipId", shipId);
+            OmboardCommand.Parameters.AddWithValue("pirateId", pirateId);
+
+            await OmboardCommand.ExecuteNonQueryAsync();
         }
 
-        //Nu ska jag kolla hur många pirater är på ett skepp
-
-        var shipCheckCommand = new NpgsqlCommand(" Select Count (*) from pirate where ship_id = @shipId ", conn);
-        shipCheckCommand.Parameters.AddWithValue("shipId", shipId);
-        int shipCheck = Convert.ToInt32(await shipCheckCommand.ExecuteScalarAsync());
-
-        //Kolla hur många pirater ett skepp kan ta
-        // Join syntax:https://neon.tech/postgresql/postgresql-tutorial/postgresql-inner-join
-
-        var shipCapacityCommand = new NpgsqlCommand("Select  st.max_crew_number from ship s " +
-                                                     "join ship_type st on" +
-                                                     " s.ship_type_id = st.id " +
-                                                     "where s.id = @shipId", conn);
-        shipCapacityCommand.Parameters.AddWithValue("@shipId", shipId);
-
-        int capacityCheck = Convert.ToInt32(await shipCapacityCommand.ExecuteScalarAsync());
-
-        if (shipCheck >= capacityCheck)
+        catch (Exception)
         {
-            throw new Exception("Skeppet är fullt och kan inte bemannas");
+            throw;
         }
 
-        //Nu ska piraten bemanna ett skepp
-        //Update syntax: https://neon.tech/postgresql/postgresql-tutorial/postgresql-update
-
-        var OmboardCommand = new NpgsqlCommand("Update pirate Set ship_id =@ShipId Where id =@pirateId", conn);
-        OmboardCommand.Parameters.AddWithValue("shipId", shipId);
-        OmboardCommand.Parameters.AddWithValue("pirateId", pirateId);
-
-        await OmboardCommand.ExecuteNonQueryAsync();
 
     }
 
@@ -291,12 +300,12 @@ class DbRepository
         try
         {
 
-            //Jag vill uppdatera ship tabell/sjunka skepet när man välja ett skepp
-            var sinkingCommand = new NpgsqlCommand("Update ship Set is_sunken = TRUE Where id = @shipId", conn, transaction);
+            ///Jag vill uppdatera ship tabell/sjunka skepet när man välja ett skepp
+            var sinkingCommand = new NpgsqlCommand("Update ship Set is_sunken = True Where id = @shipId", conn, transaction);
             sinkingCommand.Parameters.AddWithValue("shipId", shipId);
             await sinkingCommand.ExecuteNonQueryAsync();
 
-            //Nu ska jag räkna hur många som var på skeppet
+            ///Nu ska jag räkna hur många som var på skeppet
             var piratesCountCommand = new NpgsqlCommand("Select id From pirate Where ship_id = @shipId", conn, transaction);
             piratesCountCommand.Parameters.AddWithValue("shipId", shipId);
 
@@ -316,7 +325,7 @@ class DbRepository
                 return;
             }
 
-            //Nu ska jag slumpa från listan
+            ///Nu ska jag slumpa från listan
 
             Random random = new Random();
             List<int> survivors = new List<int>();
@@ -329,16 +338,45 @@ class DbRepository
                 }
             }
 
-            // updatera ship med survivors
+            /// jag ska kolla om pirater finns i survivors listan
+            List<int> lostAtSea = new List<int>();
+            foreach (int pirateId in pirateIds)
+            {
+                bool isASurvivor = false;
+
+                foreach (int survivorId in survivors)
+                {
+                    if (pirateId == survivorId)
+                    {
+                        isASurvivor = true;
+                        break;
+                    }
+                }
+
+                if (!isASurvivor)
+                {
+                    lostAtSea.Add(pirateId);
+                }
+            }
+
+            /// Uppdatera skeppet status
             foreach (int survivorId in survivors)
             {
-                var surviversCommand = new NpgsqlCommand("Update pirate Set ship_id=null where id =@pirateId", conn, transaction);
-                surviversCommand.Parameters.AddWithValue("pirateId", survivorId);
+                var survivorsCommand = new NpgsqlCommand("Update pirate Set ship_id = Null Where id = @pirateId", conn, transaction);
+                survivorsCommand.Parameters.AddWithValue("pirateId", survivorId);
+                await survivorsCommand.ExecuteNonQueryAsync();
+            }
 
-                await surviversCommand.ExecuteNonQueryAsync();
+            ///  uppdatera pirat status
+            foreach (int deadPirateId in lostAtSea)
+            {
+                var perishedCommand = new NpgsqlCommand("Update pirate Set is_dead_at_sea = True, ship_id = Null Where id = @pirateId", conn, transaction);
+                perishedCommand.Parameters.AddWithValue("pirateId", deadPirateId);
+                await perishedCommand.ExecuteNonQueryAsync();
             }
 
             await transaction.CommitAsync();
+
         }
 
         catch (Exception ex)
@@ -346,6 +384,27 @@ class DbRepository
             await transaction.RollbackAsync();
             throw new Exception("Något gick fel vid transaktionen, ingen ändring sparades.", ex);
         }
+    }
+
+    public async Task UpdateCrewNumber(int shipId, int maxCrewNumber)
+    {
+        try
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            var updateCommand = new NpgsqlCommand("Update ship_type Set max_crew_number = @maxCrewNumber " +
+                                                   "Where id = (Select ship_type_id From ship where id= @shipId)", conn);
+            updateCommand.Parameters.AddWithValue("maxCrewNumber", maxCrewNumber);
+            updateCommand.Parameters.AddWithValue("shipId", shipId);
+            await updateCommand.ExecuteNonQueryAsync();
+        }
+
+        catch (Exception)
+        {
+            throw;
+        }
+
     }
 }
 
