@@ -13,5 +13,11 @@ namespace PirateDatabase.Models
 
         public int ShipTypeId { get; set; }
         public bool IsSunken { get; set; }
+
+        //För att visa Drukna pirater/ överlevt pirater
+        public int TotalPirateCount { get; set; }
+        public int SurvivorsCount { get; set; }
+
+        public int DeadCount { get; set; }
     }
 }

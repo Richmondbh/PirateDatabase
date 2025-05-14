@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Npgsql;
 using PirateDatabase.Models;
+using System.Windows.Controls;
 
 namespace PirateDatabase.repositories;
 
@@ -186,6 +187,36 @@ class DbRepository
         }
     }
 
+    public async Task<List<ShipType>> GetAllShipTypes()
+    {
+        try
+        {
+            List<ShipType> shipTypes = new();
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            using var command = new NpgsqlCommand("Select id, name From ship_type", conn);
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    ShipType shipType = new ShipType
+                    {
+                        Id = (int)reader["id"],
+                        Name = reader["name"].ToString()
+                    };
+                    
+                    shipTypes.Add(shipType);
+                }
+            }
+            return shipTypes;
+        }
+
+        catch (Exception)
+        {
+            throw;
+        }
+    }
     public async Task<List<Pirate>> GetAllPirates()
     {
         try
@@ -219,11 +250,11 @@ class DbRepository
     //ILIKE syntax: https://neon.tech/postgresql/postgresql-tutorial/postgresql-like
     //Textsearch syntax:https://www.postgresql.org/docs/current/textsearch-controls.htm
 
-    public async Task<Pirate> SearchFörPirateOrParrot(string nameSearch)
+    public async Task<List<Pirate>> SearchFörPirateOrParrot(string nameSearch)
     {
         try
         {
-            Pirate pirateSearch = null;
+            List<Pirate> pirateSearch = new List<Pirate>();
             using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
@@ -235,8 +266,7 @@ class DbRepository
                   "LEFT JOIN SHIP S ON P.SHIP_ID = S.ID " +
                   "JOIN PIRATE_RANK R ON P.RANK_ID = R.ID " +
                   "LEFT JOIN PARROT PR ON P.ID = PR.PIRATE_ID " +
-                  "WHERE P.NAME ILIKE @NAMESEARCH OR PR.NAME ILIKE @NAMESEARCH LIMIT 1;", conn);
-
+                  "WHERE P.NAME ILIKE @NAMESEARCH OR PR.NAME ILIKE @NAMESEARCH;", conn);
 
             command.Parameters.AddWithValue("nameSearch", nameSearch);
 
@@ -246,7 +276,7 @@ class DbRepository
 
                 while (await reader.ReadAsync())
                 {
-                    pirateSearch = new Pirate
+                  Pirate pirate  =  new Pirate
                     {
                         Name = reader["pirate_name"].ToString(),
                         ShipName = reader["ship_name"].ToString(),
@@ -254,7 +284,7 @@ class DbRepository
                         CrewNumber = Convert.ToInt32(reader["crew_number"])                                     //ConvertFromDBVal<int?>(reader["crew_number"])
 
                     };
-
+                    pirateSearch.Add(pirate);
                 }
             }
             return pirateSearch;
@@ -268,29 +298,9 @@ class DbRepository
 
     }
 
-    //https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/repositories/DbRepository.cs
-    private static T? ConvertFromDBVal<T>(object obj)
-    {
-        if (obj == null || obj == DBNull.Value)
-        {
-            return default; // returns the default value for the type
-        }
-        return (T)obj;
-    }
-
-    //https://github.com/systemvetenskap/gameCollection/blob/main/gameCollectionForelasning/repositories/DbRepository.cs
-    private static object ConvertToDBVal<T>(object obj)
-    {
-        if (obj == null || obj == string.Empty)
-        {
-            return DBNull.Value;
-        }
-        return (T)obj;
-    }
-
 
     //Jag vill med Transaction hantera sänkning av skeppet med slumpmässig överlevnad för besättningen.
-    public async Task SinkShip(int shipId)
+    public async Task<Ship> SinkShip(int shipId)
     {
         using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync();
@@ -322,7 +332,7 @@ class DbRepository
             if (pirateIds.Count == 0)
             {
                 await transaction.CommitAsync();
-                return;
+                return new Ship { TotalPirateCount=pirateIds.Count, SurvivorsCount = 0, DeadCount = 0 }; 
             }
 
             ///Nu ska jag slumpa från listan
@@ -370,13 +380,19 @@ class DbRepository
             ///  uppdatera pirat status
             foreach (int deadPirateId in lostAtSea)
             {
-                var perishedCommand = new NpgsqlCommand("Update pirate Set is_dead_at_sea = True, ship_id = Null Where id = @pirateId", conn, transaction);
+                var perishedCommand = new NpgsqlCommand("Update pirate Set is_dead_at_sea = True, ship_id = Null,time_of_death=Now() Where id = @pirateId", conn, transaction);
                 perishedCommand.Parameters.AddWithValue("pirateId", deadPirateId);
                 await perishedCommand.ExecuteNonQueryAsync();
             }
 
             await transaction.CommitAsync();
 
+            return new Ship
+            {
+                TotalPirateCount= pirateIds.Count,
+                SurvivorsCount = survivors.Count,
+                DeadCount = lostAtSea.Count
+            };
         }
 
         catch (Exception ex)
@@ -386,7 +402,7 @@ class DbRepository
         }
     }
 
-    public async Task UpdateCrewNumber(int shipId, int maxCrewNumber)
+    public async Task<string> UpdateCrewNumber(int shipId, int maxCrewNumber)
     {
         try
         {
@@ -398,6 +414,22 @@ class DbRepository
             updateCommand.Parameters.AddWithValue("maxCrewNumber", maxCrewNumber);
             updateCommand.Parameters.AddWithValue("shipId", shipId);
             await updateCommand.ExecuteNonQueryAsync();
+
+
+            var checkShipTypeCommand = new NpgsqlCommand("Select st.name From Ship s Join ship_type st " +
+                                                         "On s.ship_type_id =st.id Where s.id =@shipId", conn);
+            checkShipTypeCommand.Parameters.AddWithValue("shipId", shipId);
+
+            var shipTypeName = await checkShipTypeCommand.ExecuteScalarAsync();
+
+
+            if (shipTypeName == null)
+            {
+                throw new Exception("Skeppstyp kunde inte hämtas.");
+            }
+            return shipTypeName.ToString();
+
+
         }
 
         catch (Exception)
@@ -405,6 +437,26 @@ class DbRepository
             throw;
         }
 
+    }
+
+
+    public async Task UpdateShipType(int shipId, int shipTypeId)
+    {
+        try
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            var ShipTypeUpdateCommand = new NpgsqlCommand("Update ship Set ship_type_id = @shipTypeId Where id = @shipId", conn);
+            ShipTypeUpdateCommand.Parameters.AddWithValue("shipTypeId", shipTypeId);
+            ShipTypeUpdateCommand.Parameters.AddWithValue("shipId", shipId);
+            await ShipTypeUpdateCommand.ExecuteNonQueryAsync();
+        }
+
+        catch (Exception)
+        {
+            throw;
+        }
     }
 }
 
